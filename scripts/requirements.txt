@@ -1,0 +1,4 @@
+inspect4py
+sentence-transformers
+pandas
+torch
