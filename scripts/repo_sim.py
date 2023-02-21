@@ -135,7 +135,7 @@ for repo in REPOS:
 
 # Generate embeddings
 for repo_name, repo_dict in repo_info.items():
-    print(f"[+] - Generating embeddings for {repo_name} - ")
+    print(f"[+] Generating embeddings for {repo_name}")
     if repo_dict.get("code_embeddings") is None:
         repo_dict["code_embeddings"] = get_repo_embeddings(
             repo_dict["funcs"], input_type="code"
