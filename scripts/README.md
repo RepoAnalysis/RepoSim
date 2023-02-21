@@ -48,3 +48,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 * [UniXCoder](https://arxiv.org/abs/2203.03850)
 * [Sentence Transformers](https://www.sbert.net/)
+* [awesome-python](https://github.com/vinta/awesome-python/)
