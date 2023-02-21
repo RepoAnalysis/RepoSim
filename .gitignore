@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Downloaded repositories and outputs under scripts/
+scripts/repos/
+scripts/repo_infos/
