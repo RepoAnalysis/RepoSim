@@ -24,8 +24,6 @@ Then the script computes the cosine similarity of the docstring embeddings and c
 
     to install the required packages.
 
-    (The above command will install cpu-only version of the `pytorch` package. Please refer to [PyTorch's official website](https://pytorch.org/get-started/locally/) for instructions on how to install other versions of `pytorch` on your machine.)
-
 ## Usage
 
 ```sh
