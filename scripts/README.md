@@ -5,7 +5,7 @@
 This script takes a list of repositories as input and performs the following operations on each repository:
 
 1. Extracts all function source codes and docstrings using `inspect4py`.
-2. Calculates the embeddings for each code and docstring using a fine-tuned `UniXCoder` model and the sentence transformers model `paraphrase-multilingual-mpnet-base-v2`.
+2. Calculates the embeddings for each code and docstring using a `UniXCoder` model fine-tuned on the nl-code-search task.
 3. Averages all docstring embeddings and code embeddings to represent the docstring semantics and code semantics of the repository.
 
 Then the script computes the cosine similarity of the docstring embeddings and code embeddings for each pair of repositories, and calculates the average of these two similarity scores. Results are stored as a csv file in the specified output path.
@@ -27,16 +27,18 @@ Then the script computes the cosine similarity of the docstring embeddings and c
 ## Usage
 
 ```sh
-python repo_sim.py --input <repo1> <repo2> ... --output <output_path>
+python repo_sim.py --input <repo1> <repo2> ... --output <output_dir> [--eval]
 ```
 
 For example:
 
 ```sh
-python repo_sim.py --input keon/algorithms prabhupant/python-ds --output ./res.csv
+python repo_sim.py --input keon/algorithms prabhupant/python-ds --output ./
 ```
 
-The input is a list of GitHub repository names (at least 2) in the format of `<owner>/<repo>` (e.g. `keon/algorithms`). The output of the script is a csv file containing five columns: `repo1`, `repo2`, `code_sim`, `doc_sim`, and `avg_sim`, representing two repositories and their similarity scores in terms of function source code and docstrings, and the average of the two scores.
+The input is a list of GitHub repository names (at least 2) in the format of `<owner>/<repo>` (e.g. `keon/algorithms`). The output of the script is a python pickle file `<output_dir>/repo_info.pkl` which stores a python dictionary containing all repositories' information, including name, extracted function/docstring list and their mean embeddings. This file can be used for later experiments such as semantic similarity search/comparison.
+
+When `--eval` is specified, the script will also save a csv file with five columns: `repo1`, `repo2`, `code_sim`, `doc_sim`, and `avg_sim`, representing two repositories and their similarity scores in terms of function source code and docstrings, and the average of the two scores. This file will compare each pair of repositories in the input list and save the results at `<output_dir>/eval_res.csv`.
 
 ## License
 

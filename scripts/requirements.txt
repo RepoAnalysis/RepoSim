@@ -1,3 +1,4 @@
 inspect4py
-sentence-transformers
+transformers
+torch
 pandas

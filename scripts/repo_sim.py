@@ -85,7 +85,7 @@ def get_mean_embeddings(lst):
 
         mean_embeddings = torch.mean(embeddings_list, axis=0)
 
-    return mean_embeddings
+    return mean_embeddings.cpu()
 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
