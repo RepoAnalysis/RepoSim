@@ -1,14 +1,13 @@
 import json
-import torch
+import pickle
 import argparse
 import subprocess
 
+import torch
 import pandas as pd
 
 from pathlib import Path
 from itertools import combinations
-
-from sentence_transformers import SentenceTransformer
 
 from unixcoder import UniXcoder
 
@@ -69,22 +68,20 @@ def file_to_lists(filename):
     return func_codes, docs
 
 
-def get_code_embeddings(code):
-    tokens_ids = code_model.tokenize([code], max_length=512, mode="<encoder-only>")
+def get_embeddings(text):
+    tokens_ids = model.tokenize([text], max_length=512, mode="<encoder-only>")
     source_ids = torch.tensor(tokens_ids).to(device)
-    _, embeddings = code_model(source_ids)
+    _, embeddings = model(source_ids)
 
     return embeddings
 
 
-def get_repo_embeddings(lst, input_type):
+def get_mean_embeddings(lst):
     if not lst:
         return None
+    
     with torch.no_grad():
-        if input_type == "code":
-            embeddings_list = torch.concat([get_code_embeddings(code) for code in lst])
-        elif input_type == "doc":
-            embeddings_list = doc_model.encode(lst, convert_to_tensor=True)
+        embeddings_list = torch.concat([get_embeddings(text) for text in lst])
 
         mean_embeddings = torch.mean(embeddings_list, axis=0)
 
@@ -99,7 +96,8 @@ parser.add_argument(
     help="Input repositories, at least 2 repos are required",
     required=True,
 )
-parser.add_argument("-o", "--output", help="Output csv file path", required=True)
+parser.add_argument("-o", "--output", help="Output directory", required=True)
+parser.add_argument("-e", "--eval", help="Evaluate cosine similarities between all repository combinations", action="store_true")
 args = parser.parse_args()
 if len(args.input) < 2:
     print("[-] At least 2 repos are required as inputs")
@@ -110,15 +108,14 @@ repo_path = cwd / "repos/"
 repo_path.mkdir(exist_ok=True)
 repo_info_path = cwd / "repo_infos/"
 repo_info_path.mkdir(exist_ok=True)
+output_dir = Path(args.output)
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-doc_model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=device)
-code_model = UniXcoder("Lazyhope/unixcoder-nine-advtest")
-code_model.to(device)
+model = UniXcoder("Lazyhope/unixcoder-nine-advtest")
+model.to(device)
 
-# REPOS = ["keon/algorithms", "prabhupant/python-ds", "TheAlgorithms/Python"]
 REPOS = args.input
 
 # Prepare repos
@@ -137,39 +134,39 @@ for repo in REPOS:
 for repo_name, repo_dict in repo_info.items():
     print(f"[+] Generating embeddings for {repo_name}")
     if repo_dict.get("code_embeddings") is None:
-        repo_dict["code_embeddings"] = get_repo_embeddings(
-            repo_dict["funcs"], input_type="code"
-        )
+        repo_dict["code_embeddings"] = get_mean_embeddings(repo_dict["funcs"])
     if repo_dict.get("doc_embeddings") is None:
-        repo_dict["doc_embeddings"] = get_repo_embeddings(
-            repo_dict["docs"], input_type="doc"
-        )
+        repo_dict["doc_embeddings"] = get_mean_embeddings(repo_dict["docs"])
+
+with open(output_dir / "repo_info.pkl", "wb") as f:
+    pickle.dump(repo_info, f)
 
 # Evaluation
-cossim = torch.nn.CosineSimilarity(dim=0, eps=1e-8)
-res = []
-for repo1, repo2 in combinations(REPOS, 2):
-    code_embeddings1 = repo_info[repo1]["code_embeddings"]
-    code_embeddings2 = repo_info[repo2]["code_embeddings"]
-    if code_embeddings1 is None or code_embeddings2 is None:
-        code_similarity = None
-    else:
-        code_similarity = (
-            cossim(code_embeddings1, code_embeddings2).cpu().detach().numpy().item()
-        )
+if args.eval:
+    cossim = torch.nn.CosineSimilarity(dim=0, eps=1e-8)
+    res = []
+    for repo1, repo2 in combinations(REPOS, 2):
+        code_embeddings1 = repo_info[repo1]["code_embeddings"]
+        code_embeddings2 = repo_info[repo2]["code_embeddings"]
+        if code_embeddings1 is None or code_embeddings2 is None:
+            code_similarity = None
+        else:
+            code_similarity = (
+                cossim(code_embeddings1, code_embeddings2).cpu().detach().numpy().item()
+            )
 
-    doc_embeddings1 = repo_info[repo1]["doc_embeddings"]
-    doc_embeddings2 = repo_info[repo2]["doc_embeddings"]
-    if doc_embeddings1 is None or doc_embeddings2 is None:
-        doc_similarity = None
-    else:
-        doc_similarity = (
-            cossim(doc_embeddings1, doc_embeddings2).cpu().detach().numpy().item()
-        )
+        doc_embeddings1 = repo_info[repo1]["doc_embeddings"]
+        doc_embeddings2 = repo_info[repo2]["doc_embeddings"]
+        if doc_embeddings1 is None or doc_embeddings2 is None:
+            doc_similarity = None
+        else:
+            doc_similarity = (
+                cossim(doc_embeddings1, doc_embeddings2).cpu().detach().numpy().item()
+            )
 
-    res.append((repo1, repo2, code_similarity, doc_similarity))
+        res.append((repo1, repo2, code_similarity, doc_similarity))
 
-df = pd.DataFrame(res, columns=["repo1", "repo2", "code_sim", "doc_sim"])
-df["avg_sim"] = df[["code_sim", "doc_sim"]].mean(axis=1, skipna=True)
-df.to_csv(Path(__file__).with_name(args.output), index=False)
-print(f"[+] Evaluation results saved to {args.output}")
+    df = pd.DataFrame(res, columns=["repo1", "repo2", "code_sim", "doc_sim"])
+    df["avg_sim"] = df[["code_sim", "doc_sim"]].mean(axis=1, skipna=True)
+    df.to_csv(output_dir / "eval_res.csv", index=False)
+    print(f"[+] Evaluation results saved to {output_dir}")
