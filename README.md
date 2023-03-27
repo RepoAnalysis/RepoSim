@@ -15,7 +15,8 @@ RepoSim
 ├── LICENSE
 ├── README.md
 ├── data
-│   ├── repo_topic.json  # Topic-Repos mapping
+│   ├── df2txt.py  # Convert PoolC dataset for clone detection fine-tuning script
+│   ├── repo_topic.json # Topic-Repos mapping
 │   └── repo_topic.py  # Script to select repos from topics
 ├── notebooks
 │   ├── BiEncoder
