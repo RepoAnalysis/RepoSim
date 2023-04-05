@@ -28,7 +28,7 @@ def get_repo_info(repos):
     for repo in repos:
         try:
             subprocess.run(
-                f"inspect4py -i {repo_path / repo} -o {repo_info_path / repo} -sc",
+                f"inspect4py -i {repo_path / repo} -o {repo_info_path / repo} -sc -md",
                 cwd=cwd,
                 shell=True,
                 check=True,
@@ -56,6 +56,10 @@ def file_to_lists(filename):
     with open(filename, "r") as f:
         dic = json.load(f)
     dic.pop("readme_files", None)
+    metadata = dic.pop("metadata", None)
+    topics = ["Unknown"]
+    if metadata is not None:
+        topics = metadata.get("topics", topics)
     for dir_name, files in dic.items():
         for file in files:
             if file.get("functions") is not None:
@@ -65,7 +69,7 @@ def file_to_lists(filename):
                     if class_info.get("methods") is not None:
                         funcs_to_lists(class_info["methods"], func_codes, docs)
 
-    return func_codes, docs
+    return func_codes, docs, sorted(topics)
 
 
 def get_embeddings(text):
@@ -126,9 +130,10 @@ repo_info = {}
 for repo in REPOS:
     repo_info[repo] = {}
     file_path = Path.joinpath(repo_info_path, repo, "directory_info.json")
-    function_list, docstring_list = file_to_lists(file_path)
+    function_list, docstring_list, topics = file_to_lists(file_path)
     repo_info[repo]["docs"] = docstring_list
     repo_info[repo]["funcs"] = function_list
+    repo_info[repo]["topic"] = ",".join(topics)
 
 # Generate embeddings
 for repo_name, repo_dict in repo_info.items():
