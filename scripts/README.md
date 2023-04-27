@@ -4,7 +4,7 @@
 
 This script takes a list of repositories as input and performs the following operations on each repository:
 
-1. Extracts all function source codes and docstrings using `inspect4py`.
+1. Extracts all function source codes and docstrings from the github repository.
 2. Calculates the embeddings for each code and docstring using a `UniXCoder` model fine-tuned on the nl-code-search task.
 3. Averages all docstring embeddings and code embeddings to represent the docstring semantics and code semantics of the repository.
 

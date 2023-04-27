@@ -1,75 +1,121 @@
-import json
+import os
+import ast
 import pickle
+import tarfile
+import requests
 import argparse
-import subprocess
 
 import torch
 import pandas as pd
 
 from pathlib import Path
 from itertools import combinations
+from ast import AsyncFunctionDef, FunctionDef, ClassDef, Module
 
 from unixcoder import UniXcoder
 
 
-def download_repos(repos):
-    for repo in repos:
-        repo_url = f"https://github.com/{repo}.git"
+API_HEADERS = {"Accept": "application/vnd.github+json"}
+if os.environ.get("GITHUB_TOKEN") is None:
+    print(
+        "[-] Consider setting GITHUB_TOKEN environment variable to avoid hitting rate limits"
+    )
+    print(
+        "For more info, see: https://docs.github.com/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token"
+    )
+else:
+    API_HEADERS["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
+    print("[+] Using GITHUB_TOKEN for authentication")
+
+
+def extract_code_and_docs(text: str):
+    """Extract code and documentation from a Python file.
+
+    Args:
+        text (str): Source code of a Python file
+
+    Returns:
+        tuple: A tuple of two sets, the first is the code set, and the second is the docs set,
+            each set contains unique code string or docstring, respectively.
+    """
+    root = ast.parse(text)
+    def_nodes = [
+        node
+        for node in ast.walk(root)
+        if isinstance(node, (AsyncFunctionDef, FunctionDef, ClassDef, Module))
+    ]
+
+    code_set = set()
+    docs_set = set()
+    for node in def_nodes:
+        docs = ast.get_docstring(node)
+        node_without_docs = node
+        if docs is not None:
+            docs_set.add(docs)
+            # Remove docstrings from the node
+            node_without_docs.body = node_without_docs.body[1:]
+        if isinstance(node, (AsyncFunctionDef, FunctionDef)):
+            code_set.add(ast.unparse(node_without_docs))
+
+    return code_set, docs_set
+
+
+def get_topics(repo_name):
+    api_url = f"https://api.github.com/repos/{repo_name}"
+    print(f"[+] Getting topics for {repo_name}")
+    try:
+        response = requests.get(api_url, headers=API_HEADERS)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        print(f"[-] Failed to get topics for {repo_name}: {e}")
+        return []
+
+    metadata = response.json()
+    topics = metadata.get("topics", [])
+
+    return topics
+
+
+def download_and_extract(repo_list):
+    temp_tar_path = cwd / "repo.tar"
+
+    repo_info = {}
+    for repo_name in repo_list:
+        repo_info[repo_name] = {
+            "funcs": set(),
+            "docs": set(),
+            "topic": get_topics(repo_name),
+        }
+
+        download_url = f"https://api.github.com/repos/{repo_name}/tarball"
+        print(f"[+] Downloading and extracting tags from {repo_name}")
         try:
-            subprocess.run(
-                f"git clone {repo_url} {repo}", cwd=repo_path, shell=True, check=True
-            )
-            print(f"[+] {repo} cloned")
-        except subprocess.CalledProcessError as e:
-            print(f"[-] Failed to clone {repo}: {e}")
-
-
-def get_repo_info(repos):
-    for repo in repos:
-        try:
-            subprocess.run(
-                f"inspect4py -i {repo_path / repo} -o {repo_info_path / repo} -sc -md",
-                cwd=cwd,
-                shell=True,
-                check=True,
-            )
-            print(f"[+] {repo} info extracted")
-        except subprocess.CalledProcessError as e:
-            print(f"[-] Failed to extract info from {repo}:\n{e}")
-
-
-def funcs_to_lists(funcs, func_codes, docs):
-    for func_name, func_info in funcs.items():
-        if func_info.get("source_code") is not None:
-            func_codes.append(func_info["source_code"])
-        if func_info.get("doc") is None:
+            response = requests.get(download_url, headers=API_HEADERS, stream=True)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            print(f"[-] Failed to download {repo_name}: {e}")
             continue
-        for key in ["full", "long_description", "short_description"]:
-            if func_info["doc"].get(key) is not None:
-                docs.append(f"{func_name} {func_info['doc'].get(key)}")
-                break
 
+        with open(temp_tar_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=4096):
+                f.write(chunk)
 
-def file_to_lists(filename):
-    func_codes = []
-    docs = []
-    with open(filename, "r") as f:
-        dic = json.load(f)
-    dic.pop("readme_files", None)
-    metadata = dic.pop("metadata", None)
-    topics = ["Unknown"]
-    if metadata is not None:
-        topics = metadata.get("topics", topics)
-    for dir_name, files in dic.items():
-        for file in files:
-            if file.get("functions") is not None:
-                funcs_to_lists(file["functions"], func_codes, docs)
-            if file.get("classes") is not None:
-                for class_name, class_info in file["classes"].items():
-                    if class_info.get("methods") is not None:
-                        funcs_to_lists(class_info["methods"], func_codes, docs)
+        print(f"[+] Extracting {repo_name} info")
+        with tarfile.open(temp_tar_path, "r") as tar:
+            for member in tar.getmembers():
+                if member.isfile() and member.name.endswith(".py"):
+                    file_content = tar.extractfile(member).read().decode("utf-8")
+                    try:
+                        code_set, docs_set = get_code_docs_sets(file_content)
+                    except SyntaxError as e:
+                        print(f"[-] SyntaxError in {member.name}: {e}, skipping")
+                        continue
+                    repo_info[repo_name]["funcs"].update(code_set)
+                    repo_info[repo_name]["docs"].update(docs_set)
 
-    return func_codes, docs, sorted(topics)
+    temp_tar_path.unlink(missing_ok=True)
+
+    return repo_info
 
 
 def get_embeddings(text):
@@ -80,12 +126,12 @@ def get_embeddings(text):
     return embeddings
 
 
-def get_mean_embeddings(lst):
-    if not lst:
+def calculate_mean_embeddings(text_set):
+    if not text_set:
         return None
-    
+
     with torch.no_grad():
-        embeddings_list = torch.concat([get_embeddings(text) for text in lst])
+        embeddings_list = torch.concat([get_embeddings(text) for text in text_set])
 
         mean_embeddings = torch.mean(embeddings_list, axis=0)
 
@@ -101,18 +147,20 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument("-o", "--output", help="Output directory", required=True)
-parser.add_argument("-e", "--eval", help="Evaluate cosine similarities between all repository combinations", action="store_true")
+parser.add_argument(
+    "-e",
+    "--eval",
+    help="Evaluate cosine similarities between all repository combinations",
+    action="store_true",
+)
 args = parser.parse_args()
 if len(args.input) < 2:
-    print("[-] At least 2 repos are required as inputs")
+    print("[-] At least 2 repositories are required as inputs.")
     exit(1)
 
 cwd = Path(__file__).parent
-repo_path = cwd / "repos/"
-repo_path.mkdir(exist_ok=True)
-repo_info_path = cwd / "repo_infos/"
-repo_info_path.mkdir(exist_ok=True)
 output_dir = Path(args.output)
+output_dir.mkdir(exist_ok=True)
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -123,17 +171,10 @@ model.to(device)
 REPOS = args.input
 
 # Prepare repos
-download_repos(REPOS)
-get_repo_info(REPOS)
-
-repo_info = {}
-for repo in REPOS:
-    repo_info[repo] = {}
-    file_path = Path.joinpath(repo_info_path, repo, "directory_info.json")
-    function_list, docstring_list, topics = file_to_lists(file_path)
-    repo_info[repo]["docs"] = docstring_list
-    repo_info[repo]["funcs"] = function_list
-    repo_info[repo]["topic"] = ",".join(topics)
+repo_info = download_and_extract(REPOS)
+if len(repo_info) < 2:
+    print("[-] Failed to extract info for at least 2 repos")
+    exit(1)
 
 # Generate embeddings
 for repo_name, repo_dict in repo_info.items():
@@ -148,9 +189,9 @@ with open(output_dir / "repo_info.pkl", "wb") as f:
 
 # Evaluation
 if args.eval:
-    cossim = torch.nn.CosineSimilarity(dim=0, eps=1e-8)
-    res = []
-    for repo1, repo2 in combinations(REPOS, 2):
+    cossim = torch.nn.CosineSimilarity(dim=0)
+    results = []
+    for repo1, repo2 in combinations(repo_info.keys(), 2):
         code_embeddings1 = repo_info[repo1]["code_embeddings"]
         code_embeddings2 = repo_info[repo2]["code_embeddings"]
         if code_embeddings1 is None or code_embeddings2 is None:
@@ -169,9 +210,9 @@ if args.eval:
                 cossim(doc_embeddings1, doc_embeddings2).cpu().detach().numpy().item()
             )
 
-        res.append((repo1, repo2, code_similarity, doc_similarity))
+        results.append((repo1, repo2, code_similarity, doc_similarity))
 
-    df = pd.DataFrame(res, columns=["repo1", "repo2", "code_sim", "doc_sim"])
+    df = pd.DataFrame(results, columns=["repo1", "repo2", "code_sim", "doc_sim"])
     df["avg_sim"] = df[["code_sim", "doc_sim"]].mean(axis=1, skipna=True)
     df.to_csv(output_dir / "eval_res.csv", index=False)
     print(f"[+] Evaluation results saved to {output_dir}")

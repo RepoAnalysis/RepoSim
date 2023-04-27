@@ -131,3 +131,6 @@ dmypy.json
 # Downloaded repositories and outputs under scripts/
 scripts/repos/
 scripts/repo_infos/
+
+# MacOS temp files
+.DS_Store
