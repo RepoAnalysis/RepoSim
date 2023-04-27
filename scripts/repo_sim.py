@@ -18,7 +18,7 @@ from unixcoder import UniXcoder
 API_HEADERS = {"Accept": "application/vnd.github+json"}
 if os.environ.get("GITHUB_TOKEN") is None:
     print(
-        "[-] Consider setting GITHUB_TOKEN environment variable to avoid hitting rate limits"
+        "[!] Consider setting GITHUB_TOKEN environment variable to avoid hitting rate limits"
     )
     print(
         "For more info, see: https://docs.github.com/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token"
@@ -72,6 +72,8 @@ def get_topics(repo_name):
 
     metadata = response.json()
     topics = metadata.get("topics", [])
+    if topics:
+        print(f"[+] Topics for {repo_name}: {topics}")
 
     return topics
 
