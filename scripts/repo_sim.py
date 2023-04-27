@@ -106,7 +106,7 @@ def download_and_extract(repo_list):
                 if member.isfile() and member.name.endswith(".py"):
                     file_content = tar.extractfile(member).read().decode("utf-8")
                     try:
-                        code_set, docs_set = get_code_docs_sets(file_content)
+                        code_set, docs_set = extract_code_and_docs(file_content)
                     except SyntaxError as e:
                         print(f"[-] SyntaxError in {member.name}: {e}, skipping")
                         continue
@@ -180,9 +180,9 @@ if len(repo_info) < 2:
 for repo_name, repo_dict in repo_info.items():
     print(f"[+] Generating embeddings for {repo_name}")
     if repo_dict.get("code_embeddings") is None:
-        repo_dict["code_embeddings"] = get_mean_embeddings(repo_dict["funcs"])
+        repo_dict["code_embeddings"] = calculate_mean_embeddings(repo_dict["funcs"])
     if repo_dict.get("doc_embeddings") is None:
-        repo_dict["doc_embeddings"] = get_mean_embeddings(repo_dict["docs"])
+        repo_dict["doc_embeddings"] = calculate_mean_embeddings(repo_dict["docs"])
 
 with open(output_dir / "repo_info.pkl", "wb") as f:
     pickle.dump(repo_info, f)
