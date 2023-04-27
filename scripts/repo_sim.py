@@ -175,6 +175,7 @@ repo_info = download_and_extract(REPOS)
 if len(repo_info) < 2:
     print("[-] Failed to extract info for at least 2 repos")
     exit(1)
+print(f"[+] Code and docstrings extracted from {len(repo_info)} repos: {list(repo_info)}\n")
 
 # Generate embeddings
 for repo_name, repo_dict in repo_info.items():
