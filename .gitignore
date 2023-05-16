@@ -128,9 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Downloaded repositories and outputs under scripts/
-scripts/repos/
-scripts/repo_infos/
-
 # MacOS temp files
 .DS_Store
+
+# VSCode project settings
+.vscode/

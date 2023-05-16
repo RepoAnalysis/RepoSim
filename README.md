@@ -31,9 +31,9 @@ RepoSim
     ├── LICENSE
     ├── PlayGround.ipynb  # For experimenting with repo embeddings
     ├── README.md
-    ├── repo_sim.py  # Our approach's implementation to generate repo embeddings
-    ├── requirements.txt
-    └── unixcoder.py  # UniXCoder script from Microsoft/CodeBERT
+    ├── pipeline.py  # Our approach's implementation as a HuggingFace pipeline
+    ├── repo_sim.py
+    └── requirements.txt
 ```
 
 ## License
