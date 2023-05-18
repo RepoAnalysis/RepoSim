@@ -1,7 +1,6 @@
 import ast
 import tarfile
 from ast import AsyncFunctionDef, ClassDef, FunctionDef, Module
-from io import BytesIO
 
 import numpy as np
 import requests
@@ -42,55 +41,59 @@ def extract_code_and_docs(text: str):
     return code_set, docs_set
 
 
-def get_topics(repo_name, headers=None):
+def get_metadata(repo_name, headers=None):
     api_url = f"https://api.github.com/repos/{repo_name}"
-    print(f"[+] Getting topics for {repo_name}")
+    tqdm.write(f"[+] Getting metadata for {repo_name}")
     try:
         response = requests.get(api_url, headers=headers)
         response.raise_for_status()
+
+        return response.json()
     except requests.exceptions.HTTPError as e:
-        print(f"[-] Failed to get topics for {repo_name}: {e}")
-        return []
-
-    metadata = response.json()
-    topics = metadata.get("topics", [])
-    if topics:
-        print(f"[+] Topics found for {repo_name}: {topics}")
-
-    return topics
+        tqdm.write(f"[-] Failed to retrieve metadata from {repo_name}: {e}")
+        return {}
 
 
 def download_and_extract(repos, headers=None):
     extracted_info = {}
-    for repo_name in repos:
+    for repo_name in tqdm(repos, disable=len(repos) <= 1):
+        # Get metadata
+        metadata = get_metadata(repo_name, headers=headers)
         extracted_info[repo_name] = {
             "funcs": set(),
             "docs": set(),
-            "topics": get_topics(repo_name, headers=headers),
+            "topics": metadata.get("topics", []),
+            "license": metadata.get("license", {}).get("spdx_id", None),
         }
 
+        # Download repo tarball bytes
         download_url = f"https://api.github.com/repos/{repo_name}/tarball"
-        print(f"[+] Extracting functions and docstrings from {repo_name}")
+        tqdm.write(f"[+] Downloading {repo_name}")
         try:
             response = requests.get(download_url, headers=headers, stream=True)
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            print(f"[-] Failed to download {repo_name}: {e}")
+            tqdm.write(f"[-] Failed to download {repo_name}: {e}")
             continue
 
-        repo_bytes = BytesIO(response.raw.read())
-        print(f"[+] Extracting {repo_name} info")
-        with tarfile.open(fileobj=repo_bytes) as tar:
-            for member in tar.getmembers():
-                if member.isfile() and member.name.endswith(".py"):
+        # Extract python files and parse them
+        tqdm.write(f"[+] Extracting {repo_name} info")
+        with tarfile.open(fileobj=response.raw, mode="r|gz") as tar:
+            for member in tar:
+                if (member.name.endswith(".py") and member.isfile()) is False:
+                    continue
+                try:
                     file_content = tar.extractfile(member).read().decode("utf-8")
-                    try:
-                        code_set, docs_set = extract_code_and_docs(file_content)
-                    except SyntaxError as e:
-                        print(f"[-] SyntaxError in {member.name}: {e}, skipping")
-                        continue
+                    code_set, docs_set = extract_code_and_docs(file_content)
+
                     extracted_info[repo_name]["funcs"].update(code_set)
                     extracted_info[repo_name]["docs"].update(docs_set)
+                except UnicodeDecodeError as e:
+                    tqdm.write(
+                        f"[-] UnicodeDecodeError in {member.name}, skipping: \n{e}"
+                    )
+                except SyntaxError as e:
+                    tqdm.write(f"[-] SyntaxError in {member.name}, skipping: \n{e}")
 
     return extracted_info
 
@@ -133,7 +136,7 @@ class RepoEmbeddingPipeline(Pipeline):
 
     def preprocess(self, inputs):
         if isinstance(inputs, str):
-            inputs = (inputs,)
+            inputs = [inputs]
 
         if self.st_messager:
             self.st_messager.info("[*] Downloading and extracting repos...")
@@ -175,7 +178,7 @@ class RepoEmbeddingPipeline(Pipeline):
         with tqdm(total=num_texts) as pbar:
             for repo_name, repo_info in extracted_infos.items():
                 pbar.set_description(f"Processing {repo_name}")
-                entry = {"topics": repo_info.get("topics")}
+                entry = {"topics": repo_info["topics"], "license": repo_info["license"]}
 
                 message = f"[*] Generating embeddings for {repo_name}"
                 tqdm.write(message)
