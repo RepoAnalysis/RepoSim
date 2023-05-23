@@ -103,31 +103,22 @@ def download_and_extract(repos, headers=None):
 
 
 class RepoEmbeddingPipeline(Pipeline):
-    def __init__(self, github_token=None, st_messager=None, *args, **kwargs):
+    def __init__(self, github_token=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        # Streamlit single element container created by st.empty()
-        self.st_messager = st_messager
 
         self.API_HEADERS = {"Accept": "application/vnd.github+json"}
         if not github_token:
-            message = (
+            print(
                 "[*] Consider setting GitHub token to avoid hitting rate limits. \n"
                 "For more info, see: "
                 "https://docs.github.com/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token"
             )
-            print(message)
-            if self.st_messager:
-                self.st_messager.info(message)
         else:
             self.set_github_token(github_token)
 
     def set_github_token(self, github_token):
         self.API_HEADERS["Authorization"] = f"Bearer {github_token}"
-        message = "[+] GitHub token set"
-        print(message)
-        if self.st_messager:
-            self.st_messager.success(message)
+        print("[+] GitHub token set")
 
     def _sanitize_parameters(self, **kwargs):
         _forward_kwargs = {}
@@ -141,9 +132,6 @@ class RepoEmbeddingPipeline(Pipeline):
     def preprocess(self, inputs):
         if isinstance(inputs, str):
             inputs = [inputs]
-
-        if self.st_messager:
-            self.st_messager.info("[*] Downloading and extracting repos...")
 
         extracted_infos = download_and_extract(inputs, headers=self.API_HEADERS)
 
@@ -190,10 +178,7 @@ class RepoEmbeddingPipeline(Pipeline):
 
                 pbar.set_description(f"Processing {repo_name}")
 
-                message = f"[*] Generating embeddings for {repo_name}"
-                tqdm.write(message)
-                if self.st_messager:
-                    self.st_messager.info(message)
+                tqdm.write(f"[*] Generating embeddings for {repo_name}")
 
                 code_embeddings = []
                 for func in repo_info["funcs"]:
