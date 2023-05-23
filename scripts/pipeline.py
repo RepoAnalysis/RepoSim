@@ -19,16 +19,12 @@ def extract_code_and_docs(text: str):
         tuple: A tuple of two sets, the first is the code set, and the second is the docs set,
             each set contains unique code string or docstring, respectively.
     """
-    root = ast.parse(text)
-    def_nodes = [
-        node
-        for node in ast.walk(root)
-        if isinstance(node, (AsyncFunctionDef, FunctionDef, ClassDef, Module))
-    ]
-
     code_set = set()
     docs_set = set()
-    for node in def_nodes:
+    root = ast.parse(text)
+    for node in ast.walk(root):
+        if not isinstance(node, (AsyncFunctionDef, FunctionDef, ClassDef, Module)):
+            continue
         docs = ast.get_docstring(node)
         node_without_docs = node
         if docs is not None:
@@ -55,16 +51,22 @@ def get_metadata(repo_name, headers=None):
 
 
 def download_and_extract(repos, headers=None):
-    extracted_info = {}
+    extracted_infos = []
     for repo_name in tqdm(repos, disable=len(repos) <= 1):
         # Get metadata
         metadata = get_metadata(repo_name, headers=headers)
-        extracted_info[repo_name] = {
+        repo_info = {
+            "name": repo_name,
             "funcs": set(),
             "docs": set(),
-            "topics": metadata.get("topics", []),
-            "license": metadata.get("license", {}).get("spdx_id", None),
+            "topics": [],
+            "license": None,
+            "stars": metadata.get("stargazers_count"),
         }
+        if metadata.get("topics"):
+            repo_info["topics"] = metadata["topics"]
+        if metadata.get("license"):
+            repo_info["license"] = metadata["license"]["spdx_id"]
 
         # Download repo tarball bytes
         download_url = f"https://api.github.com/repos/{repo_name}/tarball"
@@ -86,8 +88,8 @@ def download_and_extract(repos, headers=None):
                     file_content = tar.extractfile(member).read().decode("utf-8")
                     code_set, docs_set = extract_code_and_docs(file_content)
 
-                    extracted_info[repo_name]["funcs"].update(code_set)
-                    extracted_info[repo_name]["docs"].update(docs_set)
+                    repo_info["funcs"].update(code_set)
+                    repo_info["docs"].update(docs_set)
                 except UnicodeDecodeError as e:
                     tqdm.write(
                         f"[-] UnicodeDecodeError in {member.name}, skipping: \n{e}"
@@ -95,7 +97,9 @@ def download_and_extract(repos, headers=None):
                 except SyntaxError as e:
                     tqdm.write(f"[-] SyntaxError in {member.name}, skipping: \n{e}")
 
-    return extracted_info
+        extracted_infos.append(repo_info)
+
+    return extracted_infos
 
 
 class RepoEmbeddingPipeline(Pipeline):
@@ -140,6 +144,7 @@ class RepoEmbeddingPipeline(Pipeline):
 
         if self.st_messager:
             self.st_messager.info("[*] Downloading and extracting repos...")
+
         extracted_infos = download_and_extract(inputs, headers=self.API_HEADERS)
 
         return extracted_infos
@@ -171,14 +176,19 @@ class RepoEmbeddingPipeline(Pipeline):
         return sentence_embeddings
 
     def _forward(self, extracted_infos, max_length=512, st_progress=None):
-        repo_dataset = {}
-        num_texts = sum(
-            len(x["funcs"]) + len(x["docs"]) for x in extracted_infos.values()
-        )
+        repo_dataset = []
+        num_texts = sum(len(x["funcs"]) + len(x["docs"]) for x in extracted_infos)
         with tqdm(total=num_texts) as pbar:
-            for repo_name, repo_info in extracted_infos.items():
+            for repo_info in extracted_infos:
+                repo_name = repo_info["name"]
+                entry = {
+                    "name": repo_name,
+                    "topics": repo_info["topics"],
+                    "license": repo_info["license"],
+                    "stars": repo_info["stars"],
+                }
+
                 pbar.set_description(f"Processing {repo_name}")
-                entry = {"topics": repo_info["topics"], "license": repo_info["license"]}
 
                 message = f"[*] Generating embeddings for {repo_name}"
                 tqdm.write(message)
@@ -219,7 +229,7 @@ class RepoEmbeddingPipeline(Pipeline):
                     else None
                 )
 
-                repo_dataset[repo_name] = entry
+                repo_dataset.append(entry)
 
         return repo_dataset
 
