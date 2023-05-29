@@ -60,7 +60,7 @@ def download_and_extract(repos, headers=None):
             "funcs": set(),
             "docs": set(),
             "topics": [],
-            "license": None,
+            "license": "",
             "stars": metadata.get("stargazers_count"),
         }
         if metadata.get("topics"):
