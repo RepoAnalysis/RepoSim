@@ -106,34 +106,39 @@ class RepoEmbeddingPipeline(Pipeline):
     def __init__(self, github_token=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.API_HEADERS = {"Accept": "application/vnd.github+json"}
-        if not github_token:
+        self.github_token = github_token
+        if self.github_token:
+            print("[+] GitHub token set!")
+        else:
             print(
                 "[*] Consider setting GitHub token to avoid hitting rate limits. \n"
                 "For more info, see: "
                 "https://docs.github.com/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token"
             )
-        else:
-            self.set_github_token(github_token)
-
-    def set_github_token(self, github_token):
-        self.API_HEADERS["Authorization"] = f"Bearer {github_token}"
-        print("[+] GitHub token set")
 
     def _sanitize_parameters(self, **kwargs):
+        preprocess_kwargs = {}
+        if "github_token" in kwargs:
+            preprocess_kwargs["github_token"] = kwargs["github_token"]
+
         _forward_kwargs = {}
         if "max_length" in kwargs:
             _forward_kwargs["max_length"] = kwargs["max_length"]
         if "st_progress" in kwargs:
             _forward_kwargs["st_progress"] = kwargs["st_progress"]
 
-        return {}, _forward_kwargs, {}
+        return preprocess_kwargs, _forward_kwargs, {}
 
-    def preprocess(self, inputs):
+    def preprocess(self, inputs, github_token=None):
         if isinstance(inputs, str):
             inputs = [inputs]
 
-        extracted_infos = download_and_extract(inputs, headers=self.API_HEADERS)
+        headers = {"Accept": "application/vnd.github+json"}
+        token = github_token or self.github_token
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        extracted_infos = download_and_extract(inputs, headers=headers)
 
         return extracted_infos
 
