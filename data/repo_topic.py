@@ -1,9 +1,8 @@
 # This script is used to generate a dictionary of repo-topic pairs from the repo_topic.json file
 # Repo-topic Source: https://github.com/vinta/awesome-python/blob/master/README.md
-import json
 import argparse
+import json
 from pathlib import Path
-
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument(

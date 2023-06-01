@@ -49,9 +49,9 @@ def main():
 
     REPOS = args.input
 
-    repo_dataset = model(tuple(REPOS))
-    with open(output_dir / "repo_dataset.pkl", "wb") as f:
-        pickle.dump(repo_dataset, f)
+    output = model(tuple(REPOS))
+    with open(output_dir / "output.pkl", "wb") as f:
+        pickle.dump(output, f)
 
     if not args.eval:
         return
@@ -62,12 +62,11 @@ def main():
 
     # Evaluation
     rows_list = []
-    for repo1, repo2 in combinations(repo_dataset.keys(), 2):
-        info1, info2 = repo_dataset[repo1], repo_dataset[repo2]
+    for info1, info2 in combinations(output, 2):
         rows_list.append(
             {
-                "repo1": repo1,
-                "repo2": repo2,
+                "repo1": info1["name"],
+                "repo2": info2["name"],
                 "topics1": info1["topics"],
                 "topics2": info2["topics"],
                 "code_sim": cossim(
@@ -80,7 +79,6 @@ def main():
         )
 
     df = pd.DataFrame(rows_list)
-    df["avg_sim"] = df[["code_sim", "doc_sim"]].mean(axis=1, skipna=True)
     df.to_csv(output_dir / "eval_res.csv", index=False)
     print(f"[+] Evaluation results saved to {output_dir}")
 

@@ -4,11 +4,9 @@ import json
 import pathlib
 
 import pandas as pd
-from tqdm import tqdm
-
 from datasets import load_dataset
 from sklearn.model_selection import train_test_split
-
+from tqdm import tqdm
 
 # Create a directory called "dataset" in the same directory as the current script
 dataset_dir = pathlib.Path(__file__).parent / "dataset"
