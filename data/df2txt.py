@@ -1,4 +1,4 @@
-# This script converts the PoolC dataset to the format required by the UniXCoder 
+# This script converts the PoolC dataset to the format required by the UniXCoder
 # clone detection fine-tuning script
 import json
 import pathlib
@@ -12,8 +12,8 @@ from tqdm import tqdm
 dataset_dir = pathlib.Path(__file__).parent / "dataset"
 dataset_dir.mkdir(exist_ok=True)
 
-def df2txt(train, val, test=None):
 
+def df2txt(train, val, test=None):
     code_cols = [train["code1"], train["code2"], val["code1"], val["code2"]]
     if test is not None:
         code_cols.extend([test["code1"], test["code2"]])
