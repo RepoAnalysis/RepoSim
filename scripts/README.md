@@ -36,7 +36,7 @@ For example:
 python repo_sim.py --input keon/algorithms prabhupant/python-ds --output ./
 ```
 
-The input is a list of GitHub repository names (at least 2) in the format of `<owner>/<repo>` (e.g. `keon/algorithms`). The output of the script is a python pickle file `<output_dir>/repo_info.pkl` which stores a python dictionary containing all repositories' information, including name, extracted function/docstring list and their mean embeddings. This file can be used for later experiments such as semantic similarity search/comparison.
+The input is a list of GitHub repository names (at least 2) in the format of `<owner>/<repo>` (e.g. `keon/algorithms`). The output of the script is a python pickle file `<output_dir>/output.pkl` which stores a list of dictionaries containing all repositories' information, including name, topics, license, stars, extracted function/docstring list and their corresponding embeddings, as well as the mean code/docstrings embedding. This file can be used for later experiments such as semantic similarity search/comparison.
 
 When `--eval` is specified, the script will also save a csv file with five columns: `repo1`, `repo2`, `code_sim`, `doc_sim`, and `avg_sim`, representing two repositories and their similarity scores in terms of function source code and docstrings, and the average of the two scores. This file will compare each pair of repositories in the input list and save the results at `<output_dir>/eval_res.csv`.
 
