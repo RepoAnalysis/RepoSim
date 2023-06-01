@@ -1,4 +1,5 @@
+accelerate
+pandas
 transformers
 tqdm
 torch
-pandas

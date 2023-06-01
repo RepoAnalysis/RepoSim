@@ -4,17 +4,18 @@ import pickle
 from itertools import combinations
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-from numpy import dot
-from numpy.linalg import norm
+import torch
+from torch.nn.functional import cosine_similarity
 from transformers import pipeline
 
 
-def cossim(a, b):
-    if np.isnan(np.min(a)) or np.isnan(np.min(b)):
-        return np.nan
-    return dot(a, b) / (norm(a) * norm(b))
+def cossim(l1: list, l2: list):
+    if l1 is None or l2 is None:
+        return None
+    l1 = torch.tensor(l1, dtype=torch.float32).unsqueeze(0)
+    l2 = torch.tensor(l2, dtype=torch.float32).unsqueeze(0)
+    return cosine_similarity(l1, l2).item()
 
 
 def main():
