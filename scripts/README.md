@@ -10,10 +10,6 @@ This script takes a list of repositories as input and performs the following ope
 
 Then the script computes the cosine similarity of the docstring embeddings and code embeddings for each pair of repositories, and calculates the average of these two similarity scores. Results are stored as a csv file in the specified output path.
 
-## Applications
-
-[RepoSnipy](https://github.com/RepoAnalysis/RepoSnipy) is a neural search engine for discoving similar Python repositories on GitHub, powered by **RepoSim**. Please give it a try!
-
 ## Prerequisites & Installation
 
 * Python 3.9+

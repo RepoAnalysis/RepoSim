@@ -8,7 +8,11 @@ This repository contains the notebooks and scripts conducted for our approach to
 
 Currently our best performing model is [UniXCoder](https://github.com/microsoft/CodeBERT/tree/master/UniXcoder/downstream-tasks/code-search#1-advtest-dataset) fine-tuned on code search task with AdvTest dataset. For evaluations of different language models on repository similarity comparison, please refer to this Jupyter notebook: [notebooks/BiEncoder/Embeddings_evaluation.ipynb](notebooks/BiEncoder/Embeddings_evaluation.ipynb)
 
-**More details on our approach's implementation and application can be found under the [scripts](scripts) folder.**
+**More details on our approach's implementations and applications can be found under the [scripts](scripts) folder.**
+
+## Applications
+
+[RepoSnipy](https://github.com/RepoAnalysis/RepoSnipy) is a neural search engine for discoving similar Python repositories on GitHub, powered by **RepoSim**. Please feel free to give it a try!
 
 ## Directory Structure
 
